@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>EarnHub Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,sans-serif;background:#f4f7fb;color:#172033}
+    .app{max-width:520px;margin:auto;padding:18px 15px 35px}
+    .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .brand{font-size:22px;font-weight:800}.user{font-size:13px;color:#667085}
+    .balance{background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:22px;padding:22px;box-shadow:0 10px 25px #2563eb33}
+    .balance small{opacity:.85}.money{font-size:36px;font-weight:800;margin:7px 0}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:15px 0}
+    .stat,.card{background:#fff;border-radius:17px;padding:16px;box-shadow:0 5px 18px #1018280d}
+    .stat{text-align:center}.stat b{display:block;font-size:20px}.stat span{font-size:12px;color:#667085}
+    .section-title{font-size:18px;font-weight:800;margin:22px 2px 10px}
+    button{width:100%;border:0;border-radius:13px;padding:13px;font-size:15px;font-weight:700;cursor:pointer}
+    .primary{background:#2563eb;color:white}.secondary{background:#eef2ff;color:#3730a3}
+    .task{display:flex;gap:12px;align-items:center}.icon{font-size:27px}
+    .task-info{flex:1}.task-info b{display:block}.task-info small{color:#667085}
+    .task button{width:auto;padding:10px 14px}
+    .ref{background:#fff;border-radius:17px;padding:16px;box-shadow:0 5px 18px #1018280d}
+    .refcode{background:#f2f4f7;border-radius:10px;padding:12px;margin:10px 0;word-break:break-all;font-size:12px}
+    .withdraw input{width:100%;padding:13px;border:1px solid #d0d5dd;border-radius:11px;margin:7px 0 10px;font-size:15px}
+    .note{font-size:12px;color:#667085;text-align:center;margin-top:20px;line-height:1.5}
+    .toast{position:fixed;left:50%;bottom:25px;transform:translateX(-50%);background:#101828;color:#fff;padding:12px 18px;border-radius:12px;display:none;font-size:14px}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand">💎 EarnHub</div>
+    <div class="user" id="userName">Telegram User</div>
+  </div>
+
+  <div class="balance">
+    <small>Your Balance</small>
+    <div class="money">$<span id="balance">0.00</span></div>
+    <small>Keep completing tasks to earn more.</small>
+  </div>
+
+  <div class="grid">
+    <div class="stat"><b id="ads">0</b><span>Ads Watched</span></div>
+    <div class="stat"><b id="refs">0</b><span>Referrals</span></div>
+    <div class="stat"><b id="tasks">0</b><span>Tasks Done</span></div>
+  </div>
+
+  <div class="section-title">🎁 Earn</div>
+  <div class="card">
+    <div class="task">
+      <div class="icon">📺</div>
+      <div class="task-info">
+        <b>Watch Ad</b>
+        <small>Reward: $0.01</small>
+      </div>
+      <button class="primary" onclick="watchAd()">Watch</button>
+    </div>
+  </div>
+
+  <div class="section-title">📋 Tasks</div>
+  <div class="card">
+    <div class="task">
+      <div class="icon">✅</div>
+      <div class="task-info">
+        <b>Daily Check-in</b>
+        <small>Complete once per day</small>
+      </div>
+      <button class="secondary" onclick="dailyTask()">Claim</button>
+    </div>
+  </div>
+
+  <div class="section-title">👥 Referral</div>
+  <div class="ref">
+    <b>Invite friends & earn</b>
+    <div class="refcode" id="refLink">Your referral link will appear here.</div>
+    <button class="secondary" onclick="copyRef()">📋 Copy Referral Link</button>
+  </div>
+
+  <div class="section-title">💸 Withdraw</div>
+  <div class="card withdraw">
+    <small>Minimum withdrawal: $1.00</small>
+    <input id="withdrawAmount" type="number" min="1" step="0.01" placeholder="Amount">
+    <input id="withdrawMethod" type="text" placeholder="Payment method / account">
+    <button class="primary" onclick="withdraw()">Request Withdrawal</button>
+  </div>
+
+  <div class="note">
+    Demo interface only. Real balance, ad verification, referrals and withdrawals
+    must be handled by a secure backend/database.
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    const u = tg.initDataUnsafe?.user;
+    if (u) document.getElementById('userName').textContent =
+      (u.first_name || 'User') + (u.last_name ? ' ' + u.last_name : '');
+  }
+
+  let balance = Number(localStorage.getItem('balance') || 0);
+  let ads = Number(localStorage.getItem('ads') || 0);
+  let refs = Number(localStorage.getItem('refs') || 0);
+  let tasks = Number(localStorage.getItem('tasks') || 0);
+
+  function save(){
+    localStorage.setItem('balance', balance);
+    localStorage.setItem('ads', ads);
+    localStorage.setItem('refs', refs);
+    localStorage.setItem('tasks', tasks);
+    render();
+  }
+  function render(){
+    document.getElementById('balance').textContent = balance.toFixed(2);
+    document.getElementById('ads').textContent = ads;
+    document.getElementById('refs').textContent = refs;
+    document.getElementById('tasks').textContent = tasks;
+  }
+  function toast(msg){
+    const el=document.getElementById('toast');
+    el.textContent=msg; el.style.display='block';
+    setTimeout(()=>el.style.display='none',2200);
+  }
+
+  function watchAd(){
+    // Monetag SDK/ad call will be inserted here after your Monetag placement ID is available.
+    toast('Ad area is ready. Monetag ad code will be connected next.');
+    // DEMO ONLY: no balance is added here.
+  }
+
+  function dailyTask(){
+    const today=new Date().toISOString().slice(0,10);
+    if(localStorage.getItem('daily')===today){toast('Daily task already claimed.');return;}
+    localStorage.setItem('daily',today);
+    balance += 0.02; tasks++; save();
+    toast('Daily reward claimed: $0.02');
+  }
+
+  function copyRef(){
+    const id = tg?.initDataUnsafe?.user?.id || 'USER_ID';
+    const bot = 'YOUR_BOT_USERNAME';
+    const link = 'https://t.me/' + bot + '?start=ref_' + id;
+    document.getElementById('refLink').textContent = link;
+    navigator.clipboard?.writeText(link);
+    toast('Referral link copied.');
+  }
+
+  function withdraw(){
+    const amount=Number(document.getElementById('withdrawAmount').value);
+    const method=document.getElementById('withdrawMethod').value.trim();
+    if(amount<1){toast('Minimum withdrawal is $1.00');return;}
+    if(amount>balance){toast('Insufficient balance.');return;}
+    if(!method){toast('Enter your payment account.');return;}
+    toast('Withdrawal request demo submitted.');
+  }
+
+  const id = tg?.initDataUnsafe?.user?.id || 'USER_ID';
+  document.getElementById('refLink').textContent =
+    'https://t.me/YOUR_BOT_USERNAME?start=ref_' + id;
+  render();
+</script>
+</body>
+</html>
